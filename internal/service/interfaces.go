@@ -24,9 +24,3 @@ type PullRequestRepository interface {
 	GetByReviewerID(ctx context.Context, reviewerID string) ([]model.PullRequest, error)
 	ReassignReviewer(ctx context.Context, prID, oldReviewerID, newReviewerID string) error
 }
-
-type Store interface {
-	Team() TeamRepository
-	User() UserRepository
-	PR() PullRequestRepository
-}

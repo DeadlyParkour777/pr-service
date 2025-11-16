@@ -18,17 +18,15 @@ type Service struct {
 }
 
 type Dependencies struct {
-	Store Store
+	TeamRepo TeamRepository
+	UserRepo UserRepository
+	PRRepo   PullRequestRepository
 }
 
 func NewService(d Dependencies) *Service {
-	teamRepo := d.Store.Team()
-	userRepo := d.Store.User()
-	prRepo := d.Store.PR()
-
-	teamService := NewTeamService(teamRepo)
-	userService := NewUserService(userRepo, prRepo)
-	prService := NewPullRequestService(prRepo, userRepo)
+	teamService := NewTeamService(d.TeamRepo)
+	userService := NewUserService(d.UserRepo, d.PRRepo)
+	prService := NewPullRequestService(d.PRRepo, d.UserRepo)
 
 	service := &Service{
 		Team: teamService,
