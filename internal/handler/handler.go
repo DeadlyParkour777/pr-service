@@ -40,9 +40,10 @@ type Handler struct {
 	validate        *validator.Validate
 	jwtSecret       []byte
 	openAPISpecPath string
+	dbPinger        DBPinger
 }
 
-func NewHandler(s *service.Service, jwtSecret string, openAPISpecPath string) *Handler {
+func NewHandler(s *service.Service, jwtSecret string, openAPISpecPath string, pinger DBPinger) *Handler {
 	return &Handler{
 		teamService:     s.Team,
 		userService:     s.User,
@@ -51,6 +52,7 @@ func NewHandler(s *service.Service, jwtSecret string, openAPISpecPath string) *H
 		validate:        validator.New(),
 		jwtSecret:       []byte(jwtSecret),
 		openAPISpecPath: openAPISpecPath,
+		dbPinger:        pinger,
 	}
 }
 
@@ -68,6 +70,8 @@ func (h *Handler) InitRoutes() http.Handler {
 		r.Mount("/", docsHandler)
 		r.Get("/openapi.yml", h.serveOpenAPISpec)
 	})
+
+	router.Get("/health", h.healthCheckHandler)
 
 	router.Group(func(r chi.Router) {
 		r.Use(h.jwtAuthMiddleware)
@@ -151,4 +155,21 @@ func (h *Handler) WriteError(w http.ResponseWriter, r *http.Request, err error) 
 
 func (h *Handler) serveOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, h.openAPISpecPath)
+}
+
+func (h *Handler) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	err := h.dbPinger.Ping(r.Context())
+	if err != nil {
+		render.Status(r, http.StatusServiceUnavailable)
+		render.JSON(w, r, map[string]any{
+			"status": "unhealthy",
+			"errors": map[string]string{
+				"database": err.Error(),
+			},
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, map[string]string{"status": "ok"})
 }

@@ -26,3 +26,9 @@ type PullRequestService interface {
 type StatsService interface {
 	GetUserStats(ctx context.Context) ([]model.UserStats, error)
 }
+
+type DBPinger interface {
+	Ping(ctx context.Context) error
+}
+
+

@@ -140,6 +140,39 @@ components:
           description: Количество PR, назначенных пользователю на ревью.
 
 paths:
+  /health:
+      get:
+        tags: [Health]
+        summary: Проверить состояние сервиса
+        description: Возвращает статус "ok" и код 200, если сервис и соединение с БД в порядке. Возвращает 503, если есть проблемы.
+        security: [] 
+        responses:
+          '200':
+            description: Сервис работает нормально
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                example:
+                  status: "ok"
+          '503':
+            description: Сервис недоступен (например, нет связи с БД)
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                    errors:
+                      type: object
+                example:
+                  status: "unhealthy"
+                  errors:
+                    database: "failed to connect to database: ..."
   /login:
     post:
       tags: [Auth]
@@ -147,7 +180,7 @@ paths:
       security: []
       requestBody:
         description: В текущей реализации тело запроса не требуется, но для примера показано, как бы оно выглядело в реальной системе.
-        required: false # В реальной системе было бы true
+        required: false
         content:
           application/json:
             schema:

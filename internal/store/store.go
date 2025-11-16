@@ -65,3 +65,7 @@ func (s *Store) TruncateAllTables(ctx context.Context) error {
 	_, err := s.conn.Exec(ctx, `TRUNCATE teams, users, pull_requests, pull_request_reviewers RESTART IDENTITY CASCADE;`)
 	return err
 }
+
+func (s *Store) Ping(ctx context.Context) error {
+	return s.conn.Ping(ctx)
+}

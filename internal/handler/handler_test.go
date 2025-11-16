@@ -85,7 +85,7 @@ func TestMain(m *testing.M) {
 		StatsRepo: appStore.PR(),
 	}
 	appService := service.NewService(deps)
-	appHandler := NewHandler(appService, "123", testSpecPath)
+	appHandler := NewHandler(appService, "123", testSpecPath, appStore)
 	router := appHandler.InitRoutes()
 
 	server := httptest.NewServer(router)
