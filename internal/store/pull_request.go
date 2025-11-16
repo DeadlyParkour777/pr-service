@@ -208,3 +208,32 @@ func (s *PullRequestStore) ReassignReviewer(ctx context.Context, prID, oldReview
 
 	return nil
 }
+
+func (s *PullRequestStore) GetReviewCountsByUser(ctx context.Context) (map[string]int, error) {
+	query := `
+		SELECT reviewer_id, COUNT(*)
+		FROM pull_request_reviewers
+		GROUP BY reviewer_id
+	`
+	rows, err := s.conn.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query review counts: %w", err)
+	}
+	defer rows.Close()
+
+	stats := make(map[string]int)
+	for rows.Next() {
+		var userID string
+		var count int
+		if err := rows.Scan(&userID, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan review count: %w", err)
+		}
+		stats[userID] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading review count rows: %w", err)
+	}
+
+	return stats, nil
+}
