@@ -22,6 +22,7 @@ type PullRequestRepository interface {
 	GetByID(ctx context.Context, id string) (*model.PullRequest, error)
 	Merge(ctx context.Context, id string) error
 	GetByReviewerID(ctx context.Context, reviewerID string) ([]model.PullRequest, error)
+	ReassignReviewer(ctx context.Context, prID, oldReviewerID, newReviewerID string) error
 }
 
 type Store interface {
