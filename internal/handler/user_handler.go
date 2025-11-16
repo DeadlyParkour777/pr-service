@@ -13,6 +13,11 @@ func (h *Handler) setUserIsActive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.validate.Struct(req); err != nil {
+		h.writeBadRequest(w, r, err.Error())
+		return
+	}
+
 	user, err := h.userService.SetIsActive(r.Context(), req.UserID, req.IsActive)
 	if err != nil {
 		h.WriteError(w, r, err)
@@ -27,17 +32,8 @@ func (h *Handler) setUserIsActive(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getReviewsForUser(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		errResponse := APIErrorResponse{
-			Error: struct {
-				Code    string "json:\"code\""
-				Message string "json:\"message\""
-			}{
-				Code:    "BAD_REQUEST",
-				Message: "missing required query parameter: user_id",
-			},
-		}
-		render.Status(r, http.StatusBadRequest)
-		render.JSON(w, r, errResponse)
+		h.writeBadRequest(w, r, "missing required query parameter: user_id")
+		return
 	}
 
 	prs, err := h.userService.GetReviewsForUser(r.Context(), userID)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeadlyParkour777/pr-service/internal/service"
 	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,6 +23,8 @@ type Handler struct {
 	teamService TeamService
 	userService UserService
 	prService   PullRequestService
+
+	validate *validator.Validate
 }
 
 func NewHandler(s *service.Service) *Handler {
@@ -29,6 +32,8 @@ func NewHandler(s *service.Service) *Handler {
 		teamService: s.Team,
 		userService: s.User,
 		prService:   s.PR,
+
+		validate: validator.New(),
 	}
 }
 
@@ -53,9 +58,19 @@ func (h *Handler) InitRoutes() http.Handler {
 	router.Route("/pullRequest", func(r chi.Router) {
 		r.Post("/create", h.createPullRequest)
 		r.Post("/merge", h.mergePullRequest)
+		r.Post("/reassign", h.reassignReviewer)
 	})
 
 	return router
+}
+
+func (h *Handler) writeBadRequest(w http.ResponseWriter, r *http.Request, message string) {
+	resp := APIErrorResponse{}
+	resp.Error.Code = "BAD_REQUEST"
+	resp.Error.Message = message
+
+	render.Status(r, http.StatusBadRequest)
+	render.JSON(w, r, resp)
 }
 
 func (h *Handler) WriteError(w http.ResponseWriter, r *http.Request, err error) {

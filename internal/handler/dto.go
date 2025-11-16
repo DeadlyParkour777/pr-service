@@ -3,28 +3,33 @@ package handler
 import "github.com/DeadlyParkour777/pr-service/internal/model"
 
 type CreateTeamRequest struct {
-	TeamName string          `json:"team_name"`
-	Members  []TeamMemberDTO `json:"members"`
+	TeamName string          `json:"team_name" validate:"required"`
+	Members  []TeamMemberDTO `json:"members" validate:"dive"`
 }
 
 type SetIsActiveRequest struct {
-	UserID   string `json:"user_id"`
+	UserID   string `json:"user_id" validate:"required"`
 	IsActive bool   `json:"is_active"`
 }
 
 type CreatePullRequestRequest struct {
-	PullRequestID   string `json:"pull_request_id"`
-	PullRequestName string `json:"pull_request_name"`
-	AuthorID        string `json:"author_id"`
+	PullRequestID   string `json:"pull_request_id" validate:"required"`
+	PullRequestName string `json:"pull_request_name" validate:"required"`
+	AuthorID        string `json:"author_id" validate:"required"`
+}
+
+type ReassignReviewerRequest struct {
+	PullRequestID string `json:"pull_request_id" validate:"required"`
+	OldUserID     string `json:"old_user_id" validate:"required"`
 }
 
 type MergePullRequestRequest struct {
-	PullRequestID string `json:"pull_request_id"`
+	PullRequestID string `json:"pull_request_id" validate:"required"`
 }
 
 type TeamMemberDTO struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
+	UserID   string `json:"user_id" validate:"required"`
+	Username string `json:"username" validate:"required"`
 	IsActive bool   `json:"is_active"`
 }
 
@@ -46,6 +51,13 @@ type PullRequestResponse struct {
 	AuthorID          string   `json:"author_id"`
 	Status            string   `json:"status"`
 	AssignedReviewers []string `json:"assigned_reviewers"`
+}
+
+type PullRequestShortResponse struct {
+	PullRequestID   string `json:"pull_request_id"`
+	PullRequestName string `json:"pull_request_name"`
+	AuthorID        string `json:"author_id"`
+	Status          string `json:"status"`
 }
 
 func ConvertCreateTeamDTOToModels(dto CreateTeamRequest) (model.Team, []model.User) {
@@ -97,5 +109,14 @@ func ConvertPRModelToDTO(pr model.PullRequest) PullRequestResponse {
 		AuthorID:          pr.AuthorID,
 		Status:            string(pr.Status),
 		AssignedReviewers: pr.AssignedReviewers,
+	}
+}
+
+func ConvertPRModelToShortDTO(pr model.PullRequest) PullRequestShortResponse {
+	return PullRequestShortResponse{
+		PullRequestID:   pr.ID,
+		PullRequestName: pr.Name,
+		AuthorID:        pr.AuthorID,
+		Status:          string(pr.Status),
 	}
 }
