@@ -9,18 +9,6 @@ const (
 	StatusMerged PRStatus = "MERGED"
 )
 
-type Team struct {
-	ID   int
-	Name string
-}
-
-type User struct {
-	ID       string
-	Username string
-	IsActive bool
-	TeamID   int
-}
-
 type PullRequest struct {
 	ID                string
 	Name              string
@@ -29,9 +17,4 @@ type PullRequest struct {
 	AssignedReviewers []string
 	CreatedAt         time.Time
 	MergedAt          *time.Time
-}
-
-type FullUserInfo struct {
-	User
-	TeamName string
 }
