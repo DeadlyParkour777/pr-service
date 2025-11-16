@@ -76,3 +76,25 @@ func TestTeamService_Get_FailsIfNotFound(t *testing.T) {
 	assert.Equal(t, ErrNotFound, err)
 	mockTeamRepo.AssertExpectations(t)
 }
+
+func TestTeamService_Get_SuccessWithMembers(t *testing.T) {
+	mockTeamRepo := mocks.NewTeamRepository(t)
+
+	teamName := "full-team"
+	teamFromStore := &model.Team{ID: 3, Name: teamName}
+	membersFromStore := []model.User{
+		{ID: "u1", Username: "Alice"},
+		{ID: "u2", Username: "Bob"},
+	}
+
+	mockTeamRepo.On("GetByName", mock.Anything, teamName).Return(teamFromStore, membersFromStore, nil)
+
+	teamService := NewTeamService(mockTeamRepo)
+
+	resultTeam, resultMembers, err := teamService.Get(context.Background(), teamName)
+
+	assert.NoError(t, err)
+	assert.Equal(t, teamFromStore, resultTeam)
+	assert.Equal(t, membersFromStore, resultMembers)
+	mockTeamRepo.AssertExpectations(t)
+}

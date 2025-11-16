@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DeadlyParkour777/pr-service/internal/model"
+	"github.com/DeadlyParkour777/pr-service/internal/store"
 	"github.com/DeadlyParkour777/pr-service/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -212,4 +214,111 @@ func TestPullRequestService_Merge_IsIdempotent(t *testing.T) {
 	mockPRRepo.AssertNotCalled(t, "Merge", mock.Anything, mock.Anything)
 
 	mockPRRepo.AssertExpectations(t)
+}
+
+func TestPullRequestService_Create_FailsIfAuthorNotFound(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+
+	prToCreate := model.PullRequest{AuthorID: "non-existent-author"}
+
+	mockUserRepo.On("GetByID", mock.Anything, prToCreate.AuthorID).Return(nil, store.ErrNotFound)
+
+	prService := NewPullRequestService(mockPRRepo, mockUserRepo)
+
+	_, err := prService.Create(context.Background(), prToCreate)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrNotFound, err)
+
+	mockPRRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestPullRequestService_Reassign_FailsIfOldReviewerNotFound(t *testing.T) {
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+	mockUserRepo := mocks.NewUserRepository(t)
+
+	openPR := &model.PullRequest{
+		ID: "pr-1", Status: model.StatusOpen, AssignedReviewers: []string{"old-reviewer"},
+	}
+	oldReviewerID := "old-reviewer"
+
+	mockPRRepo.On("GetByID", context.Background(), "pr-1").Return(openPR, nil)
+	mockUserRepo.On("GetByID", context.Background(), oldReviewerID).Return(nil, store.ErrNotFound)
+
+	prService := NewPullRequestService(mockPRRepo, mockUserRepo)
+	_, _, err := prService.Reassign(context.Background(), "pr-1", oldReviewerID)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrNotFound, err)
+
+	mockPRRepo.AssertExpectations(t)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestPullRequestService_Create_HandlesErrorFromGetActiveMembers(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+
+	author := &model.FullUserInfo{User: model.User{ID: "author-1", TeamID: 123}}
+	prToCreate := model.PullRequest{AuthorID: "author-1"}
+
+	mockUserRepo.On("GetByID", mock.Anything, prToCreate.AuthorID).Return(author, nil)
+	expectedErr := errors.New("database error")
+	mockUserRepo.On("GetActiveTeamMembers", mock.Anything, author.TeamID, author.ID).Return(nil, expectedErr)
+
+	prService := NewPullRequestService(mockPRRepo, mockUserRepo)
+
+	_, err := prService.Create(context.Background(), prToCreate)
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestPullRequestService_Merge_HandlesErrorFromRepo(t *testing.T) {
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+	mockUserRepo := mocks.NewUserRepository(t)
+
+	prID := "pr-1"
+	openPR := &model.PullRequest{ID: prID, Status: model.StatusOpen}
+
+	mockPRRepo.On("GetByID", context.Background(), prID).Return(openPR, nil)
+	expectedErr := errors.New("concurrent update error")
+	mockPRRepo.On("Merge", context.Background(), prID).Return(expectedErr)
+
+	prService := NewPullRequestService(mockPRRepo, mockUserRepo)
+
+	_, err := prService.Merge(context.Background(), prID)
+
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+	mockPRRepo.AssertExpectations(t)
+}
+
+func TestPullRequestService_Reassign_HandlesErrorFromRepo(t *testing.T) {
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+	mockUserRepo := mocks.NewUserRepository(t)
+
+	openPR := &model.PullRequest{
+		ID: "pr-1", Status: model.StatusOpen, AssignedReviewers: []string{"old-reviewer"},
+	}
+	oldReviewer := &model.FullUserInfo{User: model.User{ID: "old-reviewer", TeamID: 123}}
+	candidates := []model.User{{ID: "new-reviewer", IsActive: true, TeamID: 123}}
+
+	mockPRRepo.On("GetByID", mock.Anything, "pr-1").Return(openPR, nil)
+	mockUserRepo.On("GetByID", mock.Anything, "old-reviewer").Return(oldReviewer, nil)
+	mockUserRepo.On("GetActiveTeamMembers", mock.Anything, oldReviewer.TeamID, "").Return(candidates, nil)
+
+	expectedErr := errors.New("db transaction failed")
+	mockPRRepo.On("ReassignReviewer", mock.Anything, "pr-1", "old-reviewer", "new-reviewer").Return(expectedErr)
+
+	prService := NewPullRequestService(mockPRRepo, mockUserRepo)
+
+	_, _, err := prService.Reassign(context.Background(), "pr-1", "old-reviewer")
+
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+	mockPRRepo.AssertExpectations(t)
+	mockUserRepo.AssertExpectations(t)
 }

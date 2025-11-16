@@ -89,3 +89,24 @@ func TestUserService_SetIsActive_FailsIfNotFound(t *testing.T) {
 	assert.Equal(t, ErrNotFound, err)
 	mockUserRepo.AssertExpectations(t)
 }
+
+func TestUserService_GetReviewsForUser_ReturnsEmptySlice(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+
+	userID := "user-with-no-reviews"
+	user := &model.FullUserInfo{User: model.User{ID: userID}}
+
+	mockUserRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
+	mockPRRepo.On("GetByReviewerID", mock.Anything, userID).Return([]model.PullRequest{}, nil)
+
+	userService := NewUserService(mockUserRepo, mockPRRepo)
+
+	resultPRs, err := userService.GetReviewsForUser(context.Background(), userID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resultPRs)
+	assert.Empty(t, resultPRs)
+	mockUserRepo.AssertExpectations(t)
+	mockPRRepo.AssertExpectations(t)
+}
