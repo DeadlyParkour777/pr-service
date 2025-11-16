@@ -81,3 +81,70 @@ func TestPullRequestHandler_E2E_Merge(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
+
+func TestPullRequestHandler_E2E_Reassign(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
+
+	appService := service.NewService(service.Dependencies{
+		TeamRepo:  testStore.Team(),
+		UserRepo:  testStore.User(),
+		PRRepo:    testStore.PR(),
+		StatsRepo: testStore.PR(),
+	})
+	teamModel := model.Team{Name: "reassign-team"}
+	users := []model.User{
+		{ID: "reassign-author", Username: "Reassign Author", IsActive: true},
+		{ID: "reviewer-A", Username: "Reviewer A", IsActive: true},
+		{ID: "reviewer-B", Username: "Reviewer B", IsActive: true},
+		{ID: "candidate-C", Username: "Candidate C", IsActive: true},
+	}
+	_, _, err := appService.Team.Create(ctx, teamModel, users)
+	require.NoError(t, err)
+
+	prModel := model.PullRequest{ID: "pr-to-reassign", Name: "Test Reassign", AuthorID: "reassign-author"}
+	createdPR, err := appService.PR.Create(ctx, prModel)
+	require.NoError(t, err)
+	require.Len(t, createdPR.AssignedReviewers, 2)
+
+	userToReassign := createdPR.AssignedReviewers[0]
+	stableReviewer := createdPR.AssignedReviewers[1]
+
+	reassignBody := `{"pull_request_id": "pr-to-reassign", "old_user_id": "` + userToReassign + `"}`
+	resp, err := http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var reassignResp struct {
+		PR         PullRequestResponse `json:"pr"`
+		ReplacedBy string              `json:"replaced_by"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&reassignResp)
+	require.NoError(t, err)
+
+	newReviewer := reassignResp.ReplacedBy
+
+	assert.NotEqual(t, "reassign-author", newReviewer)
+	assert.NotEqual(t, userToReassign, newReviewer)
+	assert.NotEqual(t, stableReviewer, newReviewer)
+
+	assert.NotContains(t, reassignResp.PR.AssignedReviewers, userToReassign)
+	assert.Contains(t, reassignResp.PR.AssignedReviewers, newReviewer)
+	assert.Contains(t, reassignResp.PR.AssignedReviewers, stableReviewer)
+	assert.Len(t, reassignResp.PR.AssignedReviewers, 2)
+
+	reassignBody = `{"pull_request_id": "non-existent-pr", "old_user_id": "` + userToReassign + `"}`
+	resp, err = http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	reassignBody = `{"pull_request_id": "pr-to-reassign", "old_user_id": "reassign-author"}`
+	resp, err = http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+}

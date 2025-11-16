@@ -71,7 +71,7 @@ func TestUserHandler_E2E_SetUserIsActive_ValidationFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	missingFieldBody := `{"is_active": true}`
 	req, err = http.NewRequest("POST", testServerURL+"/users/setIsActive", strings.NewReader(missingFieldBody))

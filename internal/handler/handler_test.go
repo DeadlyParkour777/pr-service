@@ -66,9 +66,10 @@ func TestMain(m *testing.M) {
 	testStore = appStore
 
 	deps := service.Dependencies{
-		TeamRepo: appStore.Team(),
-		UserRepo: appStore.User(),
-		PRRepo:   appStore.PR(),
+		TeamRepo:  appStore.Team(),
+		UserRepo:  appStore.User(),
+		PRRepo:    appStore.PR(),
+		StatsRepo: appStore.PR(),
 	}
 	appService := service.NewService(deps)
 	appHandler := NewHandler(appService)

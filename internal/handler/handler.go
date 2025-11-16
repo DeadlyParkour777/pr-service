@@ -20,18 +20,20 @@ type APIErrorResponse struct {
 }
 
 type Handler struct {
-	teamService TeamService
-	userService UserService
-	prService   PullRequestService
+	teamService  TeamService
+	userService  UserService
+	prService    PullRequestService
+	statsService StatsService
 
 	validate *validator.Validate
 }
 
 func NewHandler(s *service.Service) *Handler {
 	return &Handler{
-		teamService: s.Team,
-		userService: s.User,
-		prService:   s.PR,
+		teamService:  s.Team,
+		userService:  s.User,
+		prService:    s.PR,
+		statsService: s.Stats,
 
 		validate: validator.New(),
 	}
@@ -44,6 +46,10 @@ func (h *Handler) InitRoutes() http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.RequestID)
 	router.Use(render.SetContentType(render.ContentTypeJSON))
+
+	router.Route("/stats", func(r chi.Router) {
+		r.Get("/user", h.getUserStats)
+	})
 
 	router.Route("/team", func(r chi.Router) {
 		r.Post("/add", h.createTeam)

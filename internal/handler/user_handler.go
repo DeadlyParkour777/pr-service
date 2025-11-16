@@ -9,7 +9,7 @@ import (
 func (h *Handler) setUserIsActive(w http.ResponseWriter, r *http.Request) {
 	var req SetIsActiveRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		h.WriteError(w, r, err)
+		h.writeBadRequest(w, r, "invalid json request")
 		return
 	}
 

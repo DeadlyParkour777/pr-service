@@ -22,3 +22,7 @@ type PullRequestService interface {
 	Reassign(ctx context.Context, prID, oldReviewerID string) (*model.PullRequest, string, error)
 	GetByID(ctx context.Context, prID string) (*model.PullRequest, error)
 }
+
+type StatsService interface {
+	GetUserStats(ctx context.Context) ([]model.UserStats, error)
+}
