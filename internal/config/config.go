@@ -6,9 +6,10 @@ import (
 )
 
 type Config struct {
-	HTTP_PORT   string
-	DatabaseURL string
-	JWTSecret   string
+	HTTP_PORT       string
+	DatabaseURL     string
+	JWTSecret       string
+	OpenAPISpecPath string
 }
 
 func NewConfig() (*Config, error) {
@@ -27,9 +28,15 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("JWT_SECRET environment variable is not set")
 	}
 
+	specPath := os.Getenv("OPENAPI_SPEC_PATH")
+	if specPath == "" {
+		specPath = "./docs/openapi.yml"
+	}
+
 	return &Config{
-		HTTP_PORT:   port,
-		DatabaseURL: dbURL,
-		JWTSecret:   jwtSecret,
+		HTTP_PORT:       port,
+		DatabaseURL:     dbURL,
+		JWTSecret:       jwtSecret,
+		OpenAPISpecPath: specPath,
 	}, nil
 }

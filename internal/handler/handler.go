@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 type contextKey string
@@ -29,26 +30,27 @@ type APIErrorResponse struct {
 	} `json:"error"`
 }
 
-func NewHandler(s *service.Service, jwtSecret string) *Handler {
-	return &Handler{
-		teamService:  s.Team,
-		userService:  s.User,
-		prService:    s.PR,
-		statsService: s.Stats,
-
-		validate:  validator.New(),
-		jwtSecret: []byte(jwtSecret),
-	}
-}
-
 type Handler struct {
 	teamService  TeamService
 	userService  UserService
 	prService    PullRequestService
 	statsService StatsService
 
-	validate  *validator.Validate
-	jwtSecret []byte
+	validate        *validator.Validate
+	jwtSecret       []byte
+	openAPISpecPath string
+}
+
+func NewHandler(s *service.Service, jwtSecret string, openAPISpecPath string) *Handler {
+	return &Handler{
+		teamService:     s.Team,
+		userService:     s.User,
+		prService:       s.PR,
+		statsService:    s.Stats,
+		validate:        validator.New(),
+		jwtSecret:       []byte(jwtSecret),
+		openAPISpecPath: openAPISpecPath,
+	}
 }
 
 func (h *Handler) InitRoutes() http.Handler {
@@ -60,6 +62,13 @@ func (h *Handler) InitRoutes() http.Handler {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 
 	router.Post("/login", h.loginHandler)
+	router.Route("/docs", func(r chi.Router) {
+		r.Get("/openapi.yml", h.serveOpenAPISpec)
+
+		r.Get("/*", httpSwagger.Handler(
+			httpSwagger.URL("openapi.yml"),
+		))
+	})
 
 	router.Group(func(r chi.Router) {
 		r.Use(h.jwtAuthMiddleware)
@@ -139,4 +148,8 @@ func (h *Handler) WriteError(w http.ResponseWriter, r *http.Request, err error) 
 
 	render.Status(r, status)
 	render.JSON(w, r, resp)
+}
+
+func (h *Handler) serveOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, h.openAPISpecPath)
 }

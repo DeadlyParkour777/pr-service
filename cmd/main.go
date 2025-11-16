@@ -41,7 +41,7 @@ func run() error {
 	}
 
 	service := service.NewService(deps)
-	handler := handler.NewHandler(service)
+	handler := handler.NewHandler(service, cfg.JWTSecret, cfg.OpenAPISpecPath)
 	router := handler.InitRoutes()
 
 	server := &http.Server{

@@ -25,6 +25,7 @@ import (
 var (
 	testServerURL string
 	testStore     *store.Store
+	testSpecPath  string
 )
 
 func TestMain(m *testing.M) {
@@ -66,6 +67,17 @@ func TestMain(m *testing.M) {
 	}
 	testStore = appStore
 
+	tempDir, err := os.MkdirTemp("", "docs")
+	if err != nil {
+		log.Fatalf("failed to create temp dir: %s", err)
+	}
+	defer os.RemoveAll(tempDir) // Очищаем после тестов
+
+	testSpecPath = filepath.Join(tempDir, "openapi.yml")
+	if err := os.WriteFile(testSpecPath, []byte("openapi: 3.0.0"), 0644); err != nil {
+		log.Fatalf("failed to write temp spec file: %s", err)
+	}
+
 	deps := service.Dependencies{
 		TeamRepo:  appStore.Team(),
 		UserRepo:  appStore.User(),
@@ -73,7 +85,7 @@ func TestMain(m *testing.M) {
 		StatsRepo: appStore.PR(),
 	}
 	appService := service.NewService(deps)
-	appHandler := NewHandler(appService, "123")
+	appHandler := NewHandler(appService, "123", testSpecPath)
 	router := appHandler.InitRoutes()
 
 	server := httptest.NewServer(router)
