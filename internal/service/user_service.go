@@ -34,12 +34,16 @@ func (s *UserService) SetIsActive(ctx context.Context, userID string, isActive b
 }
 
 func (s *UserService) GetReviewsForUser(ctx context.Context, userID string) ([]model.PullRequest, error) {
-	prs, err := s.prRepo.GetByReviewerID(ctx, userID)
+	_, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, ErrNotFound
 		}
+		return nil, err
+	}
 
+	prs, err := s.prRepo.GetByReviewerID(ctx, userID)
+	if err != nil {
 		return nil, err
 	}
 
