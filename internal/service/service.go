@@ -22,9 +22,9 @@ type Dependencies struct {
 }
 
 func NewService(d Dependencies) *Service {
-	teamRepo := d.Store.Team
-	userRepo := d.Store.User
-	prRepo := d.Store.PR
+	teamRepo := d.Store.Team()
+	userRepo := d.Store.User()
+	prRepo := d.Store.PR()
 
 	teamService := NewTeamService(teamRepo)
 	userService := NewUserService(userRepo, prRepo)
