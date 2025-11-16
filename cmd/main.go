@@ -34,9 +34,10 @@ func run() error {
 	defer store.Close()
 
 	deps := service.Dependencies{
-		TeamRepo: store.Team(),
-		UserRepo: store.User(),
-		PRRepo:   store.PR(),
+		TeamRepo:  store.Team(),
+		UserRepo:  store.User(),
+		PRRepo:    store.PR(),
+		StatsRepo: store.PR(),
 	}
 
 	service := service.NewService(deps)
