@@ -22,9 +22,3 @@ type PullRequestService interface {
 	Reassign(ctx context.Context, prID, oldReviewerID string) (*model.PullRequest, string, error)
 	GetByID(ctx context.Context, prID string) (*model.PullRequest, error)
 }
-
-type Service interface {
-	Team() TeamService
-	User() UserService
-	PR() PullRequestService
-}

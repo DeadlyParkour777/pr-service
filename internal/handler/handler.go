@@ -24,11 +24,11 @@ type Handler struct {
 	prService   PullRequestService
 }
 
-func NewHandler(s Service) *Handler {
+func NewHandler(s *service.Service) *Handler {
 	return &Handler{
-		teamService: s.Team(),
-		userService: s.User(),
-		prService:   s.PR(),
+		teamService: s.Team,
+		userService: s.User,
+		prService:   s.PR,
 	}
 }
 
