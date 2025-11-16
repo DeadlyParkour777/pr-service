@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DeadlyParkour777/pr-service/internal/model"
@@ -96,5 +97,20 @@ func TestTeamService_Get_SuccessWithMembers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, teamFromStore, resultTeam)
 	assert.Equal(t, membersFromStore, resultMembers)
+	mockTeamRepo.AssertExpectations(t)
+}
+
+func TestTeamService_Create_FailsOnGenericRepoError(t *testing.T) {
+	mockTeamRepo := mocks.NewTeamRepository(t)
+	teamToCreate := model.Team{Name: "backend"}
+	expectedErr := errors.New("unexpected database error")
+	mockTeamRepo.On("AddTeamWithMembers", mock.Anything, teamToCreate, mock.Anything).Return(nil, expectedErr)
+
+	teamService := NewTeamService(mockTeamRepo)
+
+	_, _, err := teamService.Create(context.Background(), teamToCreate, nil)
+
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
 	mockTeamRepo.AssertExpectations(t)
 }

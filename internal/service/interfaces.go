@@ -24,3 +24,7 @@ type PullRequestRepository interface {
 	GetByReviewerID(ctx context.Context, reviewerID string) ([]model.PullRequest, error)
 	ReassignReviewer(ctx context.Context, prID, oldReviewerID, newReviewerID string) error
 }
+
+type StatsRepository interface {
+	GetReviewCountsByUser(ctx context.Context) (map[string]int, error)
+}

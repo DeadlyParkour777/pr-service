@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DeadlyParkour777/pr-service/internal/model"
@@ -107,6 +108,27 @@ func TestUserService_GetReviewsForUser_ReturnsEmptySlice(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resultPRs)
 	assert.Empty(t, resultPRs)
+	mockUserRepo.AssertExpectations(t)
+	mockPRRepo.AssertExpectations(t)
+}
+
+func TestUserService_GetReviewsForUser_FailsOnPRError(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockPRRepo := mocks.NewPullRequestRepository(t)
+
+	userID := "user-1"
+	user := &model.FullUserInfo{User: model.User{ID: userID}}
+	expectedErr := errors.New("failed to fetch pull requests")
+
+	mockUserRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
+	mockPRRepo.On("GetByReviewerID", mock.Anything, userID).Return(nil, expectedErr)
+
+	userService := NewUserService(mockUserRepo, mockPRRepo)
+
+	_, err := userService.GetReviewsForUser(context.Background(), userID)
+
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
 	mockUserRepo.AssertExpectations(t)
 	mockPRRepo.AssertExpectations(t)
 }
