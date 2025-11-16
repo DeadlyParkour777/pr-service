@@ -25,8 +25,8 @@ type PullRequestRepository interface {
 	ReassignReviewer(ctx context.Context, prID, oldReviewerID, newReviewerID string) error
 }
 
-type Store interface {
-	Team() TeamRepository
-	User() UserRepository
-	PR() PullRequestRepository
+type Store struct {
+	Team TeamRepository
+	User UserRepository
+	PR PullRequestRepository
 }
