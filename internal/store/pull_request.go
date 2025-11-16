@@ -164,3 +164,47 @@ func (s *PullRequestStore) GetByReviewerID(ctx context.Context, reviewerID strin
 
 	return prs, nil
 }
+
+func (s *PullRequestStore) ReassignReviewer(ctx context.Context, prID, oldReviewerID, newReviewerID string) error {
+	tx, err := s.conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	deleteQuery := `
+		DELETE FROM pull_request_reviewers
+		WHERE pull_request_id = $1 AND reviewer_id = $2
+	`
+
+	commandTag, err := tx.Exec(ctx, deleteQuery, prID, oldReviewerID)
+	if err != nil {
+		return fmt.Errorf("failed to delete old reviewer: %w", err)
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("old reviewer %s was not assigned to pr %s", oldReviewerID, prID)
+	}
+
+	insertQuery := `
+		INSERT INTO pull_request_reviewers (pull_request_id, reviewer_id)
+		WHERE ($1, $2)
+	`
+
+	_, err = tx.Exec(ctx, insertQuery, prID, newReviewerID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == postgresUniqueViolationCode {
+			return fmt.Errorf("new reviewer %s is already assigned to pr %s", newReviewerID, prID)
+		}
+
+		return fmt.Errorf("failed to insert new reviewer: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit reassign transaction: %w", err)
+	}
+
+	return nil
+}
