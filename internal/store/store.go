@@ -60,3 +60,8 @@ func (s *Store) PR() *PullRequestStore {
 
 	return s.pr
 }
+
+func (s *Store) TruncateAllTables(ctx context.Context) error {
+	_, err := s.conn.Exec(ctx, `TRUNCATE teams, users, pull_requests, pull_request_reviewers RESTART IDENTITY CASCADE;`)
+	return err
+}
