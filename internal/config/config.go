@@ -18,10 +18,27 @@ func NewConfig() (*Config, error) {
 		port = "8080"
 	}
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return nil, fmt.Errorf("DATABASE URL environment variable is not set")
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		return nil, fmt.Errorf("DB_HOST environment variable is not set")
 	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		return nil, fmt.Errorf("DB_PORT environment variable is not set")
+	}
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		return nil, fmt.Errorf("DB_USER environment variable is not set")
+	}
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		return nil, fmt.Errorf("DB_PASSWORD environment variable is not set")
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		return nil, fmt.Errorf("DB_NAME environment variable is not set")
+	}
+	dbURL := DatabaseConnString(dbUser, dbPassword, dbHost, dbPort, dbName)
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -39,4 +56,9 @@ func NewConfig() (*Config, error) {
 		JWTSecret:       jwtSecret,
 		OpenAPISpecPath: specPath,
 	}, nil
+}
+
+func DatabaseConnString(user, password, host, port, dbname string) string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		user, password, host, port, dbname)
 }
