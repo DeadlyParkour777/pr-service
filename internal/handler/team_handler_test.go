@@ -16,6 +16,8 @@ func TestTeamHandler_E2E_CreateAndGetTeam(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
+	token := getTestToken(t, "test-user")
+
 	createBody := `
 	{
 		"team_name": "e2e-team",
@@ -24,13 +26,22 @@ func TestTeamHandler_E2E_CreateAndGetTeam(t *testing.T) {
 		]
 	}`
 
-	createResp, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	createReq, err := http.NewRequest("POST", testServerURL+"/team/add", strings.NewReader(createBody))
+	require.NoError(t, err)
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", "Bearer "+token)
+
+	createResp, err := http.DefaultClient.Do(createReq)
 	require.NoError(t, err)
 	defer createResp.Body.Close()
 
 	assert.Equal(t, http.StatusCreated, createResp.StatusCode, "Expected status 201 Created")
 
-	getResp, err := http.Get(testServerURL + "/team/get?team_name=e2e-team")
+	getReq, err := http.NewRequest("GET", testServerURL+"/team/get?team_name=e2e-team", nil)
+	require.NoError(t, err)
+	getReq.Header.Set("Authorization", "Bearer "+token)
+
+	getResp, err := http.DefaultClient.Do(getReq)
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
@@ -52,9 +63,15 @@ func TestTeamHandler_E2E_CreateTeam_ValidationFailure(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
+	token := getTestToken(t, "test-user")
 	createBody := `{"members": []}`
 
-	resp, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	req, err := http.NewRequest("POST", testServerURL+"/team/add", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -71,6 +88,8 @@ func TestTeamHandler_E2E_CreateTeam_AlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
+	token := getTestToken(t, "test-user")
+
 	createBody := `
 	{
 		"team_name": "duplicate-team",
@@ -79,12 +98,22 @@ func TestTeamHandler_E2E_CreateTeam_AlreadyExists(t *testing.T) {
 		]
 	}`
 
-	resp1, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	req1, err := http.NewRequest("POST", testServerURL+"/team/add", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Authorization", "Bearer "+token)
+
+	resp1, err := http.DefaultClient.Do(req1)
 	require.NoError(t, err)
 	defer resp1.Body.Close()
 	assert.Equal(t, http.StatusCreated, resp1.StatusCode)
 
-	resp2, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	req2, err := http.NewRequest("POST", testServerURL+"/team/add", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", "Bearer "+token)
+
+	resp2, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
 	defer resp2.Body.Close()
 
@@ -101,9 +130,15 @@ func TestTeamHandler_E2E_CreateTeam_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
+	token := getTestToken(t, "test-user")
 	createBody := `{"team_name": "invalid-json",`
 
-	resp, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	req, err := http.NewRequest("POST", testServerURL+"/team/add", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -121,7 +156,13 @@ func TestTeamHandler_E2E_GetTeam_NotFound(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
-	getResp, err := http.Get(testServerURL + "/team/get?team_name=non-existent-team")
+	token := getTestToken(t, "test-user")
+
+	req, err := http.NewRequest("GET", testServerURL+"/team/get?team_name=non-existent-team", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	getResp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 
@@ -138,7 +179,13 @@ func TestTeamHandler_E2E_GetTeam_MissingQueryParam(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
-	getResp, err := http.Get(testServerURL + "/team/get")
+	token := getTestToken(t, "test-user")
+
+	req, err := http.NewRequest("GET", testServerURL+"/team/get", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	getResp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer getResp.Body.Close()
 

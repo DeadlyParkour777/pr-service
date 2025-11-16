@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeadlyParkour777/pr-service/internal/service"
 	"github.com/DeadlyParkour777/pr-service/internal/store"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -72,7 +73,7 @@ func TestMain(m *testing.M) {
 		StatsRepo: appStore.PR(),
 	}
 	appService := service.NewService(deps)
-	appHandler := NewHandler(appService)
+	appHandler := NewHandler(appService, "123")
 	router := appHandler.InitRoutes()
 
 	server := httptest.NewServer(router)
@@ -88,4 +89,24 @@ func truncateTables(ctx context.Context) {
 	if err := testStore.TruncateAllTables(ctx); err != nil {
 		log.Fatalf("failed to truncate tables: %v", err)
 	}
+}
+
+func getTestToken(t *testing.T, userID string) string {
+	t.Helper()
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	tokenString, err := token.SignedString([]byte("123"))
+	if err != nil {
+		t.Fatalf("Failed to sign token: %v", err)
+	}
+
+	return tokenString
 }

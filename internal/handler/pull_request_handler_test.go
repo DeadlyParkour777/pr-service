@@ -17,7 +17,7 @@ func TestPullRequestHandler_E2E_Create(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
-	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR()})
+	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR(), StatsRepo: testStore.PR()})
 	teamModel := model.Team{Name: "pr-team"}
 	users := []model.User{
 		{ID: "pr-author", Username: "PR Author", IsActive: true},
@@ -26,8 +26,15 @@ func TestPullRequestHandler_E2E_Create(t *testing.T) {
 	_, _, err := appService.Team.Create(ctx, teamModel, users)
 	require.NoError(t, err)
 
+	token := getTestToken(t, "pr-author")
 	createBody := `{"pull_request_id": "pr-1", "pull_request_name": "My First PR", "author_id": "pr-author"}`
-	resp, err := http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createBody))
+
+	req, err := http.NewRequest("POST", testServerURL+"/pullRequest/create", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -40,7 +47,12 @@ func TestPullRequestHandler_E2E_Create(t *testing.T) {
 	assert.Equal(t, "pr-1", createResp.PR.PullRequestID)
 	assert.NotEmpty(t, createResp.PR.AssignedReviewers)
 
-	resp, err = http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createBody))
+	req, err = http.NewRequest("POST", testServerURL+"/pullRequest/create", strings.NewReader(createBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -51,7 +63,7 @@ func TestPullRequestHandler_E2E_Merge(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
-	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR()})
+	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR(), StatsRepo: testStore.PR()})
 	teamModel := model.Team{Name: "merge-team"}
 	userModel := model.User{ID: "merge-author", Username: "Merge Author", IsActive: true}
 	_, _, err := appService.Team.Create(ctx, teamModel, []model.User{userModel})
@@ -61,8 +73,15 @@ func TestPullRequestHandler_E2E_Merge(t *testing.T) {
 	_, err = appService.PR.Create(ctx, pr)
 	require.NoError(t, err)
 
+	token := getTestToken(t, "merge-author")
 	mergeBody := `{"pull_request_id": "pr-to-merge"}`
-	resp, err := http.Post(testServerURL+"/pullRequest/merge", "application/json", strings.NewReader(mergeBody))
+
+	req, err := http.NewRequest("POST", testServerURL+"/pullRequest/merge", strings.NewReader(mergeBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -75,7 +94,12 @@ func TestPullRequestHandler_E2E_Merge(t *testing.T) {
 	assert.Equal(t, "MERGED", mergeResp.PR.Status)
 
 	mergeBody = `{"pull_request_id": "non-existent-pr"}`
-	resp, err = http.Post(testServerURL+"/pullRequest/merge", "application/json", strings.NewReader(mergeBody))
+	req, err = http.NewRequest("POST", testServerURL+"/pullRequest/merge", strings.NewReader(mergeBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -110,8 +134,15 @@ func TestPullRequestHandler_E2E_Reassign(t *testing.T) {
 	userToReassign := createdPR.AssignedReviewers[0]
 	stableReviewer := createdPR.AssignedReviewers[1]
 
+	token := getTestToken(t, "reassign-author")
 	reassignBody := `{"pull_request_id": "pr-to-reassign", "old_user_id": "` + userToReassign + `"}`
-	resp, err := http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+
+	req, err := http.NewRequest("POST", testServerURL+"/pullRequest/reassign", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -124,25 +155,33 @@ func TestPullRequestHandler_E2E_Reassign(t *testing.T) {
 	require.NoError(t, err)
 
 	newReviewer := reassignResp.ReplacedBy
-
 	assert.NotEqual(t, "reassign-author", newReviewer)
 	assert.NotEqual(t, userToReassign, newReviewer)
 	assert.NotEqual(t, stableReviewer, newReviewer)
-
 	assert.NotContains(t, reassignResp.PR.AssignedReviewers, userToReassign)
 	assert.Contains(t, reassignResp.PR.AssignedReviewers, newReviewer)
 	assert.Contains(t, reassignResp.PR.AssignedReviewers, stableReviewer)
 	assert.Len(t, reassignResp.PR.AssignedReviewers, 2)
 
 	reassignBody = `{"pull_request_id": "non-existent-pr", "old_user_id": "` + userToReassign + `"}`
-	resp, err = http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+	req, err = http.NewRequest("POST", testServerURL+"/pullRequest/reassign", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	reassignBody = `{"pull_request_id": "pr-to-reassign", "old_user_id": "reassign-author"}`
-	resp, err = http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
+	req, err = http.NewRequest("POST", testServerURL+"/pullRequest/reassign", strings.NewReader(reassignBody))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

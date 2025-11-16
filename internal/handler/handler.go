@@ -10,7 +10,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/golang-jwt/jwt/v5"
 )
+
+type contextKey string
+
+const userContextKey = contextKey("user")
+
+type Claims struct {
+	UserID string `json:"user_id"`
+	jwt.RegisteredClaims
+}
 
 type APIErrorResponse struct {
 	Error struct {
@@ -19,24 +29,26 @@ type APIErrorResponse struct {
 	} `json:"error"`
 }
 
-type Handler struct {
-	teamService  TeamService
-	userService  UserService
-	prService    PullRequestService
-	statsService StatsService
-
-	validate *validator.Validate
-}
-
-func NewHandler(s *service.Service) *Handler {
+func NewHandler(s *service.Service, jwtSecret string) *Handler {
 	return &Handler{
 		teamService:  s.Team,
 		userService:  s.User,
 		prService:    s.PR,
 		statsService: s.Stats,
 
-		validate: validator.New(),
+		validate:  validator.New(),
+		jwtSecret: []byte(jwtSecret),
 	}
+}
+
+type Handler struct {
+	teamService  TeamService
+	userService  UserService
+	prService    PullRequestService
+	statsService StatsService
+
+	validate  *validator.Validate
+	jwtSecret []byte
 }
 
 func (h *Handler) InitRoutes() http.Handler {
@@ -47,24 +59,30 @@ func (h *Handler) InitRoutes() http.Handler {
 	router.Use(middleware.RequestID)
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 
-	router.Route("/stats", func(r chi.Router) {
-		r.Get("/user", h.getUserStats)
-	})
+	router.Post("/login", h.loginHandler)
 
-	router.Route("/team", func(r chi.Router) {
-		r.Post("/add", h.createTeam)
-		r.Get("/get", h.getTeam)
-	})
+	router.Group(func(r chi.Router) {
+		r.Use(h.jwtAuthMiddleware)
 
-	router.Route("/users", func(r chi.Router) {
-		r.Post("/setIsActive", h.setUserIsActive)
-		r.Get("/getReview", h.getReviewsForUser)
-	})
+		r.Route("/stats", func(r chi.Router) {
+			r.Get("/user", h.getUserStats)
+		})
 
-	router.Route("/pullRequest", func(r chi.Router) {
-		r.Post("/create", h.createPullRequest)
-		r.Post("/merge", h.mergePullRequest)
-		r.Post("/reassign", h.reassignReviewer)
+		r.Route("/team", func(r chi.Router) {
+			r.Post("/add", h.createTeam)
+			r.Get("/get", h.getTeam)
+		})
+
+		r.Route("/users", func(r chi.Router) {
+			r.Post("/setIsActive", h.setUserIsActive)
+			r.Get("/getReview", h.getReviewsForUser)
+		})
+
+		r.Route("/pullRequest", func(r chi.Router) {
+			r.Post("/create", h.createPullRequest)
+			r.Post("/merge", h.mergePullRequest)
+			r.Post("/reassign", h.reassignReviewer)
+		})
 	})
 
 	return router

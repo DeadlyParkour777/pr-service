@@ -17,16 +17,19 @@ func TestUserHandler_E2E_SetUserIsActive(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
-	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR()})
+	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR(), StatsRepo: testStore.PR()})
 	teamModel := model.Team{Name: "e2e-user-team"}
 	userModels := []model.User{{ID: "e2e-user-active", Username: "E2E User", IsActive: true}}
 	_, _, err := appService.Team.Create(ctx, teamModel, userModels)
 	require.NoError(t, err)
 
+	token := getTestToken(t, "test-user")
+
 	setInactiveBody := `{"user_id": "e2e-user-active", "is_active": false}`
 	req, err := http.NewRequest("POST", testServerURL+"/users/setIsActive", strings.NewReader(setInactiveBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -46,6 +49,7 @@ func TestUserHandler_E2E_SetUserIsActive(t *testing.T) {
 	req, err = http.NewRequest("POST", testServerURL+"/users/setIsActive", strings.NewReader(setNotFoundBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -62,10 +66,13 @@ func TestUserHandler_E2E_SetUserIsActive_ValidationFailure(t *testing.T) {
 	ctx := context.Background()
 	truncateTables(ctx)
 
+	token := getTestToken(t, "test-user")
+
 	invalidJsonBody := `{"user_id": "some-user",`
 	req, err := http.NewRequest("POST", testServerURL+"/users/setIsActive", strings.NewReader(invalidJsonBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -77,6 +84,7 @@ func TestUserHandler_E2E_SetUserIsActive_ValidationFailure(t *testing.T) {
 	req, err = http.NewRequest("POST", testServerURL+"/users/setIsActive", strings.NewReader(missingFieldBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)

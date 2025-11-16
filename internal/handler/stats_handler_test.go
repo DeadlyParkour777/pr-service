@@ -25,9 +25,8 @@ func TestGetUserStats(t *testing.T) {
 			{ID: "user3", Username: "User Three", IsActive: true},
 			{ID: "author", Username: "Author", IsActive: true},
 		}
-		createdTeam, err := testStore.Team().AddTeamWithMembers(ctx, team, users)
+		_, err := testStore.Team().AddTeamWithMembers(ctx, team, users)
 		require.NoError(t, err)
-		require.NotNil(t, createdTeam)
 
 		prs := []model.PullRequest{
 			{ID: "pr1", Name: "PR One", AuthorID: "author", AssignedReviewers: []string{"user1", "user2"}},
@@ -40,8 +39,11 @@ func TestGetUserStats(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		token := getTestToken(t, "test-user")
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServerURL+"/stats/user", nil)
 		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+token)
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
@@ -68,15 +70,17 @@ func TestGetUserStats(t *testing.T) {
 			{UserID: "user3", ReviewCount: 1},
 		}
 
-		require.Len(t, result.UserStats, len(expectedStats))
 		require.Equal(t, expectedStats, result.UserStats)
 	})
 
 	t.Run("success - returns empty list when no reviews exist", func(t *testing.T) {
 		truncateTables(ctx)
 
+		token := getTestToken(t, "test-user")
+
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServerURL+"/stats/user", nil)
 		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+token)
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
