@@ -188,7 +188,7 @@ func (s *PullRequestStore) ReassignReviewer(ctx context.Context, prID, oldReview
 
 	insertQuery := `
 		INSERT INTO pull_request_reviewers (pull_request_id, reviewer_id)
-		WHERE ($1, $2)
+		VALUES ($1, $2)
 	`
 
 	_, err = tx.Exec(ctx, insertQuery, prID, newReviewerID)
