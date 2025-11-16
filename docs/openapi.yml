@@ -3,13 +3,22 @@ info:
   title: PR Reviewer Assignment Service (Test Task, Fall 2025)
   version: "1.0.0"
 
+security:
+  - BearerAuth: []
+
 tags:
+  - name: Auth
   - name: Teams
   - name: Users
   - name: PullRequests
   - name: Health
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     TeamNameQuery:
       name: team_name
@@ -120,8 +129,78 @@ components:
         status:
           type: string
           enum: [OPEN, MERGED]
+    UserStats:
+      type: object
+      required: [user_id, review_count]
+      properties:
+        user_id:
+          type: string
+        review_count:
+          type: integer
+          description: Количество PR, назначенных пользователю на ревью.
 
 paths:
+  /login:
+    post:
+      tags: [Auth]
+      summary: Получить JWT токен для авторизации
+      security: []
+      requestBody:
+        description: В текущей реализации тело запроса не требуется, но для примера показано, как бы оно выглядело в реальной системе.
+        required: false # В реальной системе было бы true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              example:
+                username: "test-user"
+                password: "password123"
+      responses:
+        '200':
+          description: Токен успешно сгенерирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  
+  /stats/user:
+    get:
+      tags: [Users]
+      summary: Получить статистику по количеству ревью для каждого пользователя
+      responses:
+        '200':
+          description: Успешный ответ со статистикой
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_stats:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserStats'
+              example:
+                user_stats:
+                  - user_id: "u1"
+                    review_count: 15
+                  - user_id: "u2"
+                    review_count: 7
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /team/add:
     post:
       tags: [Teams]

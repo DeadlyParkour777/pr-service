@@ -9,9 +9,10 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"github.com/go-chi/chi/v5"
+
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
-	httpSwagger "github.com/swaggo/http-swagger"
+	swgui "github.com/swaggest/swgui/v4"
 )
 
 type contextKey string
@@ -62,12 +63,10 @@ func (h *Handler) InitRoutes() http.Handler {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 
 	router.Post("/login", h.loginHandler)
+	docsHandler := swgui.NewHandler("PR Service API", "/docs/openapi.yml", "/docs/")
 	router.Route("/docs", func(r chi.Router) {
+		r.Mount("/", docsHandler)
 		r.Get("/openapi.yml", h.serveOpenAPISpec)
-
-		r.Get("/*", httpSwagger.Handler(
-			httpSwagger.URL("openapi.yml"),
-		))
 	})
 
 	router.Group(func(r chi.Router) {
