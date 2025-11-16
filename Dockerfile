@@ -16,6 +16,8 @@ WORKDIR /app
 
 COPY --from=builder /app/server .
 
+COPY docs/openapi.yml ./docs/openapi.yml
+
 EXPOSE 8080
 
 CMD ["/app/server"]
