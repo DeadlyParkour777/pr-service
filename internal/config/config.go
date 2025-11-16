@@ -8,6 +8,7 @@ import (
 type Config struct {
 	HTTP_PORT   string
 	DatabaseURL string
+	JWTSecret   string
 }
 
 func NewConfig() (*Config, error) {
@@ -21,8 +22,14 @@ func NewConfig() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE URL environment variable is not set")
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET environment variable is not set")
+	}
+
 	return &Config{
 		HTTP_PORT:   port,
 		DatabaseURL: dbURL,
+		JWTSecret:   jwtSecret,
 	}, nil
 }
