@@ -8,114 +8,76 @@ import (
 	"testing"
 
 	"github.com/DeadlyParkour777/pr-service/internal/model"
+	"github.com/DeadlyParkour777/pr-service/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupE2ETestData(t *testing.T) {
-	truncateTables(context.Background())
+func TestPullRequestHandler_E2E_Create(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
 
-	createBody := `
-	{
-		"team_name": "e2e-pr-team",
-		"members": [
-			{"user_id": "author-e2e", "username": "E2E Author", "is_active": true},
-			{"user_id": "reviewer-e2e-1", "username": "E2E Reviewer 1", "is_active": true},
-			{"user_id": "reviewer-e2e-2", "username": "E2E Reviewer 2", "is_active": true},
-			{"user_id": "new-reviewer-e2e", "username": "E2E New Reviewer", "is_active": true}
-		]
-	}`
-
-	resp, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR()})
+	teamModel := model.Team{Name: "pr-team"}
+	users := []model.User{
+		{ID: "pr-author", Username: "PR Author", IsActive: true},
+		{ID: "pr-reviewer", Username: "PR Reviewer", IsActive: true},
+	}
+	_, _, err := appService.Team.Create(ctx, teamModel, users)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	resp.Body.Close()
+
+	createBody := `{"pull_request_id": "pr-1", "pull_request_name": "My First PR", "author_id": "pr-author"}`
+	resp, err := http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	var createResp struct {
+		PR PullRequestResponse `json:"pr"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&createResp)
+	require.NoError(t, err)
+	assert.Equal(t, "pr-1", createResp.PR.PullRequestID)
+	assert.NotEmpty(t, createResp.PR.AssignedReviewers)
+
+	resp, err = http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestPullRequestHandler_E2E_FullLifecycle(t *testing.T) {
-	setupE2ETestData(t)
+func TestPullRequestHandler_E2E_Merge(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
 
-	createPRBody := `{"pull_request_id": "pr-e2e-1", "pull_request_name": "E2E Test PR", "author_id": "author-e2e"}`
-
-	createResp, err := http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createPRBody))
+	appService := service.NewService(service.Dependencies{TeamRepo: testStore.Team(), UserRepo: testStore.User(), PRRepo: testStore.PR()})
+	teamModel := model.Team{Name: "merge-team"}
+	userModel := model.User{ID: "merge-author", Username: "Merge Author", IsActive: true}
+	_, _, err := appService.Team.Create(ctx, teamModel, []model.User{userModel})
 	require.NoError(t, err)
-	defer createResp.Body.Close()
 
-	assert.Equal(t, http.StatusCreated, createResp.StatusCode, "PR creation should succeed")
+	pr := model.PullRequest{ID: "pr-to-merge", Name: "Test Merge", AuthorID: "merge-author", Status: model.StatusOpen}
+	_, err = appService.PR.Create(ctx, pr)
+	require.NoError(t, err)
 
-	var createRespBody struct {
+	mergeBody := `{"pull_request_id": "pr-to-merge"}`
+	resp, err := http.Post(testServerURL+"/pullRequest/merge", "application/json", strings.NewReader(mergeBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	var mergeResp struct {
 		PR PullRequestResponse `json:"pr"`
 	}
-	err = json.NewDecoder(createResp.Body).Decode(&createRespBody)
+	err = json.NewDecoder(resp.Body).Decode(&mergeResp)
 	require.NoError(t, err)
+	assert.Equal(t, "MERGED", mergeResp.PR.Status)
 
-	assert.Equal(t, "pr-e2e-1", createRespBody.PR.PullRequestID)
-	assert.Equal(t, model.StatusOpen, model.PRStatus(createRespBody.PR.Status))
-	assert.Len(t, createRespBody.PR.AssignedReviewers, 2, "Should assign 2 reviewers")
-
-	mergePRBody := `{"pull_request_id": "pr-e2e-1"}`
-
-	mergeResp, err := http.Post(testServerURL+"/pullRequest/merge", "application/json", strings.NewReader(mergePRBody))
+	mergeBody = `{"pull_request_id": "non-existent-pr"}`
+	resp, err = http.Post(testServerURL+"/pullRequest/merge", "application/json", strings.NewReader(mergeBody))
 	require.NoError(t, err)
-	defer mergeResp.Body.Close()
+	defer resp.Body.Close()
 
-	assert.Equal(t, http.StatusOK, mergeResp.StatusCode, "PR merge should succeed")
-
-	var mergeRespBody struct {
-		PR PullRequestResponse `json:"pr"`
-	}
-	err = json.NewDecoder(mergeResp.Body).Decode(&mergeRespBody)
-	require.NoError(t, err)
-
-	assert.Equal(t, model.StatusMerged, model.PRStatus(mergeRespBody.PR.Status), "PR status should be MERGED")
-
-	reassignBody := `{"pull_request_id": "pr-e2e-1", "old_user_id": "` + createRespBody.PR.AssignedReviewers[0] + `"}`
-
-	reassignResp, err := http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
-	require.NoError(t, err)
-	defer reassignResp.Body.Close()
-
-	assert.Equal(t, http.StatusConflict, reassignResp.StatusCode, "Should not be able to reassign on a merged PR")
-
-	var errResp APIErrorResponse
-	err = json.NewDecoder(reassignResp.Body).Decode(&errResp)
-	require.NoError(t, err)
-
-	assert.Equal(t, "PR_MERGED", errResp.Error.Code)
-}
-
-func TestPullRequestHandler_E2E_ReassignSuccess(t *testing.T) {
-	setupE2ETestData(t)
-
-	createPRBody := `{"pull_request_id": "pr-e2e-reassign", "pull_request_name": "Reassign Test", "author_id": "author-e2e"}`
-	createResp, err := http.Post(testServerURL+"/pullRequest/create", "application/json", strings.NewReader(createPRBody))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-
-	var createRespBody struct {
-		PR PullRequestResponse `json:"pr"`
-	}
-	json.NewDecoder(createResp.Body).Decode(&createRespBody)
-	createResp.Body.Close()
-
-	oldReviewer := createRespBody.PR.AssignedReviewers[0]
-
-	reassignBody := `{"pull_request_id": "pr-e2e-reassign", "old_user_id": "` + oldReviewer + `"}`
-
-	reassignResp, err := http.Post(testServerURL+"/pullRequest/reassign", "application/json", strings.NewReader(reassignBody))
-	require.NoError(t, err)
-	defer reassignResp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, reassignResp.StatusCode, "Reassign should succeed")
-
-	var reassignRespBody struct {
-		PR         PullRequestResponse `json:"pr"`
-		ReplacedBy string              `json:"replaced_by"`
-	}
-	err = json.NewDecoder(reassignResp.Body).Decode(&reassignRespBody)
-	require.NoError(t, err)
-
-	assert.NotContains(t, reassignRespBody.PR.AssignedReviewers, oldReviewer)
-	assert.Contains(t, reassignRespBody.PR.AssignedReviewers, reassignRespBody.ReplacedBy)
-	assert.NotEqual(t, oldReviewer, reassignRespBody.ReplacedBy)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

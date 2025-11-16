@@ -66,3 +66,88 @@ func TestTeamHandler_E2E_CreateTeam_ValidationFailure(t *testing.T) {
 
 	assert.Equal(t, "BAD_REQUEST", errResp.Error.Code)
 }
+
+func TestTeamHandler_E2E_CreateTeam_AlreadyExists(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
+
+	createBody := `
+	{
+		"team_name": "duplicate-team",
+		"members": [
+			{"user_id": "user-1", "username": "Alice", "is_active": true}
+		]
+	}`
+
+	resp1, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+	assert.Equal(t, http.StatusCreated, resp1.StatusCode)
+
+	resp2, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp2.StatusCode)
+
+	var errResp APIErrorResponse
+	err = json.NewDecoder(resp2.Body).Decode(&errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, "TEAM_EXISTS", errResp.Error.Code)
+}
+
+func TestTeamHandler_E2E_CreateTeam_InvalidJSON(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
+
+	createBody := `{"team_name": "invalid-json",`
+
+	resp, err := http.Post(testServerURL+"/team/add", "application/json", strings.NewReader(createBody))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	var errResp APIErrorResponse
+	err = json.NewDecoder(resp.Body).Decode(&errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, "BAD_REQUEST", errResp.Error.Code)
+	assert.Contains(t, errResp.Error.Message, "invalid json request")
+}
+
+func TestTeamHandler_E2E_GetTeam_NotFound(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
+
+	getResp, err := http.Get(testServerURL + "/team/get?team_name=non-existent-team")
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	assert.Equal(t, http.StatusNotFound, getResp.StatusCode)
+
+	var errResp APIErrorResponse
+	err = json.NewDecoder(getResp.Body).Decode(&errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, "NOT_FOUND", errResp.Error.Code)
+}
+
+func TestTeamHandler_E2E_GetTeam_MissingQueryParam(t *testing.T) {
+	ctx := context.Background()
+	truncateTables(ctx)
+
+	getResp, err := http.Get(testServerURL + "/team/get")
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, getResp.StatusCode)
+
+	var errResp APIErrorResponse
+	err = json.NewDecoder(getResp.Body).Decode(&errResp)
+	require.NoError(t, err)
+
+	assert.Equal(t, "BAD_REQUEST", errResp.Error.Code)
+	assert.Contains(t, errResp.Error.Message, "missing required query parameter: team_name")
+}
